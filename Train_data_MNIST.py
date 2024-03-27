@@ -5,7 +5,10 @@ import torchvision
 import torchvision.transforms as transforms
 
 # Transform the data to torch tensors and normalize it
-transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.1307,), (0.3081,))
+])
 
 # Download the training and test datasets
 trainset = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform)
@@ -25,12 +28,21 @@ class MLP(nn.Module):
         self.fc3 = nn.Linear(256, 10)
         self.relu = nn.ReLU()
 
+        # Initialize weights to a normal distribution
+        self.init_weights()
+
     def forward(self, x):
         x = x.view(-1, 28 * 28)  # Flatten the images
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.fc3(x)  # No activation and no softmax at the end
         return x
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, mean=0.0, std=0.1)
+                nn.init.constant_(m.bias, 0)
 
 
 # Create the model
@@ -75,5 +87,3 @@ with torch.no_grad():
         correct += (predicted == labels).sum().item()
 
 print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')
-
-#end
