@@ -29,8 +29,7 @@ class MLP(nn.Module):
         self.fc3 = nn.Linear(512, 10)  # Adjusted to take input directly from fc1
         self.relu = nn.ReLU()
 
-    def forward(self, x):
-        x = x.view(-1, 28 * 28)  # Flatten the images
+    def forward(self, x):        x = x.view(-1, 28 * 28)  # Flatten the images
         x = self.relu(self.fc1(x))
         # Skipped processing with fc2
         x = self.fc3(x)  # Directly from fc1 to fc3
