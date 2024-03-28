@@ -20,23 +20,21 @@ testset = torchvision.datasets.MNIST(root='./data', train=False, download=True, 
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True)
 testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=False)
 
-
-# Define a simple MLP model
+# Define a simplified MLP model without the fc2 layer
 class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(28 * 28, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, 10)
+        # Removed the fc2 layer
+        self.fc3 = nn.Linear(512, 10)  # Adjusted to take input directly from fc1
         self.relu = nn.ReLU()
 
     def forward(self, x):
         x = x.view(-1, 28 * 28)  # Flatten the images
         x = self.relu(self.fc1(x))
-        x = self.relu(self.fc2(x))
-        x = self.fc3(x)
+        # Skipped processing with fc2
+        x = self.fc3(x)  # Directly from fc1 to fc3
         return x
-
 
 # Function to train and evaluate the model
 def train_and_evaluate_model(learning_rate):
@@ -67,7 +65,6 @@ def train_and_evaluate_model(learning_rate):
 
     accuracy = 100 * correct / total
     return accuracy
-
 
 # Main script
 # Generate 20 logarithmically spaced learning rates between 1e-4 and 1e-1
