@@ -50,7 +50,7 @@ model = MLP()
 
 # Define the loss function and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.9)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Train the model
 for epoch in range(10):  # loop over the dataset multiple times
