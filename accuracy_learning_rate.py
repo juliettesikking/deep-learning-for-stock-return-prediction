@@ -20,28 +20,24 @@ testset = torchvision.datasets.MNIST(root='./data', train=False, download=True, 
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True)
 testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=False)
 
+
 # Define a simplified MLP model without the fc2 layer
 class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(28 * 28, 512)
-        # Removed the fc2 layer
-        self.fc3 = nn.Linear(512, 10)  # Adjusted to take input directly from fc1
+        self.fc3 = nn.Linear(512, 10)
         self.relu = nn.ReLU()
 
-    def forward(self, x):        x = x.view(-1, 28 * 28)  # Flatten the images
+    def forward(self, x):
+        x = x.view(-1, 28 * 28)  # Flatten the images
         x = self.relu(self.fc1(x))
-        # Skipped processing with fc2
         x = self.fc3(x)  # Directly from fc1 to fc3
         return x
 
-# Function to train and evaluate the model
-def train_and_evaluate_model(learning_rate):
-    model = MLP()
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    # Train the model
+# Function to train the model
+def train_model(model, trainloader, criterion, optimizer):
     for epoch in range(10):  # loop over the dataset multiple times
         for i, data in enumerate(trainloader, 0):
             inputs, labels = data
@@ -51,7 +47,9 @@ def train_and_evaluate_model(learning_rate):
             loss.backward()
             optimizer.step()
 
-    # Test the model
+
+# Function to evaluate the model
+def evaluate_model(model, testloader):
     correct = 0
     total = 0
     with torch.no_grad():
@@ -61,26 +59,36 @@ def train_and_evaluate_model(learning_rate):
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+    return 100 * correct / total
 
-    accuracy = 100 * correct / total
-    return accuracy
 
 # Main script
-# Generate 20 logarithmically spaced learning rates between 1e-4 and 1e-1
-learning_rates = np.logspace(-4, -1, num=20)
-accuracies = []
+def main():
+    # Generate 20 logarithmically spaced learning rates between 1e-4 and 1e-1
+    learning_rates = np.logspace(-4, -1, num=20)
+    accuracies = []
 
-for lr in learning_rates:
-    accuracy = train_and_evaluate_model(lr)
-    accuracies.append(accuracy)
-    print(f'Learning Rate: {lr:.4f} - Accuracy: {accuracy:.2f}%')
+    for lr in learning_rates:
+        model = MLP()
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(model.parameters(), lr=lr)
 
-# Plotting the accuracies
-plt.figure(figsize=(10, 6))
-plt.plot(learning_rates, accuracies, '-o')
-plt.xscale('log')
-plt.xlabel('Learning Rate')
-plt.ylabel('Accuracy (%)')
-plt.title('Accuracy vs Learning Rate')
-plt.grid(True)
-plt.show()
+        train_model(model, trainloader, criterion, optimizer)
+        accuracy = evaluate_model(model, testloader)
+
+        accuracies.append(accuracy)
+        print(f'Learning Rate: {lr:.4f} - Accuracy: {accuracy:.2f}%')
+
+    # Plotting the accuracies
+    plt.figure(figsize=(10, 6))
+    plt.plot(learning_rates, accuracies, '-o')
+    plt.xscale('log')
+    plt.xlabel('Learning Rate')
+    plt.ylabel('Accuracy (%)')
+    plt.title('Accuracy vs Learning Rate')
+    plt.grid(True)
+    plt.show()
+
+
+if __name__ == '__main__':
+    main()
