@@ -13,6 +13,9 @@ def load_pickle(file_path):
 # Replace 'your_pickle_file_path.pickle' with your actual file path
 pickle_file_path = '/Users/juliette/Documents/bachelor_projet_deep_learning/projet/usa_131_ranked_large_mega.pickle'
 data = load_pickle(pickle_file_path)
+data.pop("size_grp")
+data.pop("id")
+y = data.pop("r_1") # this is next month return
 
 # Assuming 'data' is a dictionary with 'features' and 'targets'
 # Preprocess your features and targets as needed here
@@ -23,7 +26,7 @@ data = load_pickle(pickle_file_path)
 # You should replace these lines with actual preprocessing
 X = torch.randn(1000, 10)  # Example feature tensor with 1000 samples and 10 features each
 y = torch.randn(1000, 1)   # Example target tensor with 1000 samples and 1 target each
-
+breakpoint()
 # Create TensorDataset and DataLoader
 dataset = TensorDataset(X, y)
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
