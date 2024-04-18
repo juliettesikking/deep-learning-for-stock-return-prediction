@@ -49,7 +49,7 @@ criterion = nn.MSELoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
 # Training loop
-epochs = 100  # Placeholder for the number of epochs
+epochs = 200  # Placeholder for the number of epochs
 for epoch in range(epochs):
     for inputs, targets in dataloader:
         # Forward pass
