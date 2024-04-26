@@ -1,88 +1,89 @@
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from datetime import timedelta
 from torch.utils.data import DataLoader, TensorDataset
-import pickle
-import logging
-import os
-import time
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Assuming MSRR and RollingWindow are defined in MSRR.py and RollingWindow.py respectively
+from MSRR import MSRR
+from RollingWindow import RollingWindow
+from TorchRunner import TorchRunner
 
-# Function to load a pickle file
-def load_pickle(file_path):
-    with open(file_path, 'rb') as file:
-        data = pickle.load(file)
+class CompleteModel(nn.Module):
+    def __init__(self, input_features, output_features):
+        super(CompleteModel, self).__init__()
+        self.linear = nn.Linear(input_features, output_features)
+        self.msrr_loss_module = MSRR(months=1)
+
+    def forward(self, inputs, targets=None):
+        outputs = self.linear(inputs)
+        if targets is not None:
+            loss = self.msrr_loss_module(outputs, targets)
+            return outputs, loss
+        return outputs
+
+def load_data(file_path):
+    data = pd.read_pickle(file_path)
+    data['date'] = pd.to_datetime(data['date'])
+    data.sort_values('date', inplace=True)
     return data
 
-# Load and preprocess the data
-pickle_file_path = '/Users/juliette/Documents/bachelor_projet_deep_learning/projet/usa_131_ranked_large_mega.pickle'
-data = load_pickle(pickle_file_path)
+def prepare_dataset(data, feature_cols, target_col):
+    features = torch.tensor(data[feature_cols].values, dtype=torch.float32)
+    targets = torch.tensor(data[target_col].values, dtype=torch.float32).unsqueeze(1)
+    dataset = TensorDataset(features, targets)
+    return DataLoader(dataset, batch_size=32, shuffle=True)
 
-# Remove columns not required for training
-y = data.pop('r_1')  # Target: next month's return
-data.pop('size_grp')
-data.pop('id')
+def main():
+    data_path = '/Users/juliette/Documents/bachelor_projet_deep_learning/projet/usa_131_ranked_large_mega.pickle'  # Update with your actual data file path
+    data = load_data(data_path)
 
-# Convert data into a DataFrame for preprocessing
-df = pd.DataFrame(data)
-df['r_1'] = y
+    feature_cols = data.columns.difference(['id', 'date', 'size_grp', 'r_1'])
+    target_col = 'r_1'
 
-# Convert all columns to numeric, replace non-numeric values with NaN and fill NaNs with the mean
-df = df.apply(pd.to_numeric, errors='coerce')
-df.fillna(df.mean(), inplace=True)
+    model = CompleteModel(input_features=len(feature_cols), output_features=1)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# Convert DataFrame to PyTorch tensors
-X = torch.tensor(df.drop('r_1', axis=1).values, dtype=torch.float32)
-y = torch.tensor(df['r_1'].values, dtype=torch.float32).view(-1, 1)
+    start_date = data['date'].min()
+    end_date = data['date'].max()
+    all_predictions = []
 
-# Define the dataset and dataloader
-dataset = TensorDataset(X, y)
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    while start_date + timedelta(days=730) <= end_date:
+        train_end = start_date + timedelta(days=730)
+        test_start = train_end + timedelta(days=1)
 
-# Neural network architecture
-class ShallowNeuralNetwork(nn.Module):
-    def __init__(self, input_dim):
-        super(ShallowNeuralNetwork, self).__init__()
-        self.layer1 = nn.Linear(input_dim, 128)
-        self.layer2 = nn.Linear(128, 1, bias=False)
+        if test_start + timedelta(days=30) > end_date:
+            break
 
-    def forward(self, x):
-        x = torch.sigmoid(self.layer1(x))
-        x = self.layer2(x)
-        return x
+        train_data = data[(data['date'] >= start_date) & (data['date'] <= train_end)]
+        test_data = data[(data['date'] >= test_start) & (data['date'] < test_start + timedelta(days=30))]
 
-# Initialize the neural network
-model = ShallowNeuralNetwork(input_dim=X.shape[1])
+        train_loader = prepare_dataset(train_data, feature_cols, target_col)
+        test_loader = prepare_dataset(test_data, feature_cols, target_col)
 
-# Loss function and optimizer
-criterion = nn.MSELoss()
-optimizer = optim.SGD(model.parameters(), lr=0.01)
+        for epoch in range(10):  # Train for 10 epochs
+            model.train()
+            for features, targets in train_loader:
+                optimizer.zero_grad()
+                outputs, loss = model(features, targets)
+                loss.backward()
+                optimizer.step()
 
-# Training function
-def train_model(epochs, model, dataloader, optimizer, criterion):
-    for epoch in range(epochs):
-        for inputs, targets in dataloader:
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-            loss.backward()
-            optimizer.step()
-        if (epoch+1) % 10 == 0:
-            logging.info(f'Epoch [{epoch+1}/{epochs}], Loss: {loss.item()}')
+        model.eval()
+        with torch.no_grad():
+            for features, _ in test_loader:
+                predictions = model(features)
+                all_predictions.extend(predictions.numpy().flatten().tolist())
 
-# Example training call
-train_model(200, model, dataloader, optimizer, criterion)
+        start_date += timedelta(days=730)
 
-# Save the model after training
-torch.save(model.state_dict(), 'shallow_network_model.pth')
-logging.info("Training complete.")
+    # Output predictions
+    print("Predictions for each period following the 2-year training windows:")
+    print(all_predictions)
 
-# Example prediction (you should replace this part with your prediction code)
-model.eval()
-with torch.no_grad():
-    predictions = model(X)
-    print(predictions)
+    # Optionally, save predictions to a file
+    pd.Series(all_predictions).to_csv('predictions.csv', index=False)
+
+if __name__ == "__main__":
+    main()
