@@ -38,14 +38,14 @@ if __name__ == "__main__":
         pd.to_datetime(data.date).dt.year * 100 + pd.to_datetime(data.date).dt.month
     )
 
-    window = RollingWindow(data=data, window_size=5) # years
+    window = RollingWindow(data=data, window_size=1) # years
 
     model = #TODO build a model here, 
     criterion = MSRR()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.98), eps=1e-9)
     runner = TorchRunner(
         True,
-        5,
+        1,
         2023,
         "./",
         epochs=10,

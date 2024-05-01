@@ -79,12 +79,12 @@ class TorchRunner:
 
                 model.eval()
                 with torch.no_grad():
-                    predictions, norms = model(test_tensor)
-                    if predictions.size(0) != test_info.shape[0]:
-                        raise ValueError("The number of predictions does not match the number of entries in test_info")
-                    predictions = predictions.view(-1)  # Ensure predictions are flattened if not already
+                    predictions = model(test_tensor)
+                    predictions = predictions.view(-1)  
                     test_info["predictions"] = predictions.detach().cpu()
-
+                pf_returns[shift_one_month(current_month)] = sum(
+                    test_info.r_1 * test_info.predictions
+                )
                 # Save and log results as needed
                 previous_month = current_month
                 self.month += 1
@@ -95,11 +95,13 @@ class TorchRunner:
 
         end = time.time()
         logging.info(f"Total Training time: {end-start:.2f}s")
-        pd.Series(pf_returns).to_pickle(os.path.join(self.output, "returns.pickle"))
+        returns = pd.Series(pf_returns)
+        returns.to_pickle(os.path.join(self.output, "returns.pickle"))
+        print(f'Sharpe: {returns.mean()/returns.std() * np.sqrt(12)}')
         pd.Series(in_sample_sharpes).to_pickle(os.path.join(self.output, "in_sample_sharpes.pickle"))
 
     @staticmethod
-    def run_epoch(data_iter, model, loss_compute, optimizer, coordinate_check: bool):
+    def run_epoch(data_iter, model, loss_compute, optimizer):
         start = time.time()
         total_loss = 0
         n_accum = 0
