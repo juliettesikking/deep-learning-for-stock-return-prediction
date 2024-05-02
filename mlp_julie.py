@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Import your specific modules
 from MSRR import MSRR
 from RollingWindow import RollingWindow
 from TorchRunner import TorchRunner
@@ -26,21 +25,13 @@ class CompleteModel(torch.nn.Module):
         x = self.non_linearity(self.linear(x))
         for hidden_layer in self.hidden_layers:
             x = self.non_linearity(hidden_layer(x))
-        output = self.output_layer(x)
-        return output
+        return self.output_layer(x)
 
 
 def load_data(filepath):
     data = pd.read_pickle(filepath)
     data['month'] = data['date'].dt.month + data['date'].dt.year * 100
     return data
-
-
-def prepare_dataset(data, feature_cols, target_col):
-    features = torch.tensor(data[feature_cols].values, dtype=torch.float32)
-    targets = torch.tensor(data[target_col].values, dtype=torch.float32).unsqueeze(1)
-    dataset = TensorDataset(features, targets)
-    return DataLoader(dataset, batch_size=32, shuffle=True)
 
 
 def calculate_sharpe_ratio(returns, risk_free_rate=0.0):
@@ -59,13 +50,13 @@ def main(filepath: str, output_dir: str):
     sharpe_ratios = []
     learning_rates = []
 
-    for lr in np.arange(-18, -9, step=1):
-        learning_rate = 2 ** (-lr)
+    for lr in np.logspace(-4, -2, num=10):
+        learning_rate = lr
         model = CompleteModel(input_dim=len(feature_cols), hidden_layers=[16, 16, 16])
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
         criterion = MSRR()
 
-        rolling_window = RollingWindow(data, window_size=12)
+        rolling_window = RollingWindow(data, window_size=12)  # Window size adjusted here if needed
         torch_runner = TorchRunner(
             rolling_window=True,
             window_size=24,
@@ -79,7 +70,8 @@ def main(filepath: str, output_dir: str):
             coordinate_check=False
         )
 
-        returns = torch_runner.run(model, criterion, optimizer, rolling_window)
+        returns = torch_runner.run(model, criterion, optimizer,
+                                   rolling_window)  # Assuming this returns the necessary returns
         sharpe_ratio = calculate_sharpe_ratio(returns)
         sharpe_ratios.append(sharpe_ratio)
         learning_rates.append(learning_rate)
@@ -99,7 +91,8 @@ def main(filepath: str, output_dir: str):
 if __name__ == "__main__":
     torch.manual_seed(1234)
     parser = argparse.ArgumentParser()
-    parser.add_argument("--filepath", type=str, default='/Users/juliette/Documents/bachelor_projet_deep_learning/projet/usa_131_ranked_large_mega.pickle')
+    parser.add_argument("--filepath", type=str,
+                        default='/Users/juliette/Documents/bachelor_projet_deep_learning/projet/usa_131_ranked_large_mega.pickle')
     parser.add_argument("--output-dir", type=str, default="./")
 
     args = parser.parse_args()
