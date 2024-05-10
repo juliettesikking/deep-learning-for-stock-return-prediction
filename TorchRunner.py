@@ -98,6 +98,7 @@ class TorchRunner:
         returns = pd.Series(pf_returns)
         returns.to_pickle(os.path.join(self.output, "returns.pickle"))
         print(f'Sharpe: {returns.mean()/returns.std() * np.sqrt(12)}')
+        print(returns.mean)
         pd.Series(in_sample_sharpes).to_pickle(os.path.join(self.output, "in_sample_sharpes.pickle"))
         return  returns
     @staticmethod
