@@ -37,9 +37,21 @@ def load_data(filepath):
 def calculate_sharpe_ratio(returns, risk_free_rate=0.0):
     if returns is None or len(returns) == 0:
         return float('nan')  # Handle empty or None returns gracefully
+
+    # Remove NaN values from returns
+    returns = np.array(returns)
+    returns = returns[~np.isnan(returns)]
+
+    if len(returns) == 0:
+        return float('nan')  # Handle case where all returns were NaN
+
     mean_return = np.mean(returns)
     std_return = np.std(returns)
-    return (mean_return - risk_free_rate) / std_return
+
+    if std_return == 0:
+        return float('nan')  # Avoid division by zero if no variation in returns
+
+    return (mean_return / std_return)
 
 
 def main(filepath: str, output_dir: str):
@@ -75,6 +87,9 @@ def main(filepath: str, output_dir: str):
         sharpe_ratio = calculate_sharpe_ratio(returns)
         sharpe_ratios.append(sharpe_ratio)
         learning_rates.append(learning_rate)
+
+        print("Learning Rates:", learning_rates)
+        print("Sharpe Ratios:", sharpe_ratios)
 
     # Plotting
     plt.figure(figsize=(10, 5))

@@ -99,7 +99,7 @@ class TorchRunner:
         returns.to_pickle(os.path.join(self.output, "returns.pickle"))
         print(f'Sharpe: {returns.mean()/returns.std() * np.sqrt(12)}')
         pd.Series(in_sample_sharpes).to_pickle(os.path.join(self.output, "in_sample_sharpes.pickle"))
-
+        return  returns
     @staticmethod
     def run_epoch(data_iter, model, loss_compute, optimizer):
         start = time.time()
