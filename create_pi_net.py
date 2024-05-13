@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from pilimit_lib.inf.layers import InfPiInputLinearReLU, InfPiLinearReLU
-from experiments.networks.networks import PiNet
+from pilim.experiments.networks.networks import PiNet
 import numpy as np
 import time
 
