@@ -13,7 +13,7 @@ class MSRR(nn.Module):
         if targets.dim() > 2:
             targets = targets.view(-1, 1)  # Reshape targets correctly
 
-        # Use matmul for dot product and handle the transposition with .mT if inputs is not 2-dimensional
+        # Use matmul for  dot product and handle the transposition with .mT if inputs is not 2-dimensional
         loss = (1 - torch.matmul(inputs.mT if inputs.dim() == 2 else inputs.permute(*torch.arange(inputs.ndim - 1, -1, -1)), targets)) ** 2
         loss = loss.sum() / (self.months * targets.shape[0])  # Normalize loss
 

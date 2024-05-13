@@ -44,7 +44,7 @@ def calculate_sharpe_ratio(returns):
 def run_experiment(hidden_dim, data, feature_cols, window_size):
     sharpe_ratios = []
     learning_rates = []
-    for lr in np.arange(-18, -9, step=1):
+    for lr in np.arange(-18, -9 , step=1):
         model = PiLimitDeepNetwork(
             input_dim=len(feature_cols),
             hidden_dim=hidden_dim,
