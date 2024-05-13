@@ -1,88 +1,110 @@
 import argparse
 import pandas as pd
 import torch
-import torch.nn as nn
+import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
 
-from torch.optim import Adam
-from torch.utils.data import DataLoader, TensorDataset
+from losses.MSRR import MSRR
+from RollingWindow import RollingWindow
+from TorchRunner import TorchRunner
 
+class PiLimitDeepNetwork(torch.nn.Module):
+    def __init__(self, input_dim, hidden_dim):
+        super(PiLimitDeepNetwork, self).__init__()
+        self.layer1 = torch.nn.Linear(input_dim, hidden_dim, bias=True)
+        self.layer2 = torch.nn.Linear(hidden_dim, hidden_dim, bias=True)
+        self.layer3 = torch.nn.Linear(hidden_dim, hidden_dim, bias=True)
+        self.output_layer = torch.nn.Linear(hidden_dim, 1, bias=False)
+        self.non_linearity = torch.nn.ReLU()
 
-class InfMLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, layers_count):
-        super(InfMLP, self).__init__()
-        self.input_layer = nn.Linear(input_dim, hidden_dim)
-        self.hidden_layers = nn.ModuleList([nn.Linear(hidden_dim, hidden_dim) for _ in range(layers_count)])
-        self.output_layer = nn.Linear(hidden_dim, output_dim)
-        self.activation = nn.ReLU()
+        # Initialization to mimic infinite width properties (pi-limit)
+        for layer in [self.layer1, self.layer2, self.layer3, self.output_layer]:
+            torch.nn.init.normal_(layer.weight, mean=0.0, std=1.0 / np.sqrt(layer.in_features))
+            if layer.bias is not None:
+                torch.nn.init.constant_(layer.bias, 0)
 
     def forward(self, x):
-        x = self.activation(self.input_layer(x))
-        for layer in self.hidden_layers:
-            x = self.activation(layer(x))
-        x = self.output_layer(x)
-        return x
-
+        x = self.non_linearity(self.layer1(x))
+        x = self.non_linearity(self.layer2(x))
+        x = self.non_linearity(self.layer3(x))
+        return self.output_layer(x)
 
 def load_data(filepath):
     data = pd.read_pickle(filepath)
     data["month"] = data["date"].dt.month + data["date"].dt.year * 100
-    feature_cols = [col for col in data.columns if col not in ["id", "date", "size_grp", "r_1", "month"]]
-    features = data[feature_cols].values
-    targets = data['r_1'].values  # Assuming 'r_1' is the target variable
-    return features, targets
-
+    return data
 
 def calculate_sharpe_ratio(returns):
+    returns = np.array(returns)
     mean_return = np.mean(returns)
     std_return = np.std(returns)
     return mean_return / std_return * np.sqrt(12)
 
+def run_experiment(hidden_dim, data, feature_cols, window_size):
+    sharpe_ratios = []
+    learning_rates = []
+    for lr in np.arange(-18, -9, step=1):
+        model = PiLimitDeepNetwork(
+            input_dim=len(feature_cols),
+            hidden_dim=hidden_dim,
+        )
+        optimizer = optim.Adam(model.parameters(), lr=2.0 ** lr)
+        criterion = MSRR()
+        rolling_window = RollingWindow(data, window_size=window_size)
+        torch_runner = TorchRunner(
+            rolling_window=True,
+            window_size=window_size,
+            end_year=2023,
+            output="./",
+            epochs=10,
+            data=data,
+            resume=False,
+            no_incremental=False,
+            model_name=model,
+            coordinate_check=False,
+        )
+        returns = torch_runner.run(model, criterion, optimizer, rolling_window)
+        sharpe_ratio = calculate_sharpe_ratio(returns)
+        sharpe_ratios.append(sharpe_ratio)
+        learning_rates.append(lr)
+    return learning_rates, sharpe_ratios
 
-def train_model(model, criterion, optimizer, features, targets, epochs=10):
-    dataset = TensorDataset(torch.tensor(features, dtype=torch.float32), torch.tensor(targets, dtype=torch.float32))
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
-    model.train()
-    for epoch in range(epochs):
-        for inputs, labels in dataloader:
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels.unsqueeze(1))
-            loss.backward()
-            optimizer.step()
-        print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
-
-
-def main(filepath, hidden_dims, layers_count):
-    features, targets = load_data(filepath)
+def main(filepath: str, window_size: int):
+    data = load_data(filepath)
+    feature_cols = [
+        col
+        for col in data.columns
+        if col not in ["id", "date", "size_grp", "r_1", "month"]
+    ]
+    network_sizes = [16, 64, 128]
     plt.figure(figsize=(10, 5))
 
-    for hidden_dim in hidden_dims:
-        model = InfMLP(input_dim=features.shape[1], hidden_dim=hidden_dim, output_dim=1, layers_count=layers_count)
-        criterion = nn.MSELoss()
-        optimizer = Adam(model.parameters(), lr=0.001)
-        train_model(model, criterion, optimizer, features, targets, epochs=50)
+    for size in network_sizes:
+        learning_rates, sharpe_ratios = run_experiment(
+            size, data, feature_cols, window_size
+        )
+        plt.plot(
+            learning_rates, sharpe_ratios, marker="o", label=f"Network size: {size}"
+        )
 
-        model.eval()
-        with torch.no_grad():
-            predictions = model(torch.tensor(features, dtype=torch.float32))
-        sharpe_ratio = calculate_sharpe_ratio(predictions.numpy().flatten())
-
-        plt.plot(hidden_dim, sharpe_ratio, marker="o", label=f"Hidden Dim: {hidden_dim}")
-
-    plt.xlabel("Hidden Dimensions")
+    plt.xlabel("Learning Rate ")
     plt.ylabel("Sharpe Ratio")
-    plt.title("Sharpe Ratio vs Hidden Dimensions")
+    plt.title("Sharpe Ratio vs Learning Rate")
+    ax = plt.gca()
+    ax.yaxis.grid(True, linestyle="--", alpha=0.7)
     plt.legend()
-    plt.grid(True)
     plt.show()
 
-
 if __name__ == "__main__":
+    torch.manual_seed(1234)
     parser = argparse.ArgumentParser()
-    parser.add_argument("--filepath", type=str, default="/Users/juliette/Documents/bachelor_projet_deep_learning/projet/usa_131_ranked_large_mega.pickle")
+    parser.add_argument(
+        "--filepath",
+        type=str,
+        default="/Users/juliette/Documents/bachelor_projet_deep_learning/projet/usa_131_ranked_large_mega.pickle",
+    )
     args = parser.parse_args()
-    hidden_dims = [16, 64, 128]  # Example hidden dimensions
-    layers_count = 2  # Number of hidden layers
-    main(filepath=args.filepath, hidden_dims=hidden_dims, layers_count=layers_count)
+
+    # 5 years = 60 months
+    main(filepath=args.filepath, window_size=5)
