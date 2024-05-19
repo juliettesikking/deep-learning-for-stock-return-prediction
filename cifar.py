@@ -3,9 +3,7 @@ from torch import nn
 from pilimit_lib.inf.layers import InfPiInputLinearReLU, InfPiLinearReLU
 from pilim.experiments.networks.networks import PiNet
 import numpy as np
-import time
-from pilimit_lib.inf.optim import PiSGD, store_pi_grad_norm_, clip_grad_norm_
-import sys
+import torch.nn as nn
 
 
 class InfMLP(PiNet):
@@ -60,51 +58,34 @@ class InfMLP(PiNet):
                 x *= self.last_layer_alpha
         return x
 
-torch.manual_seed(3133)
-np.random.seed(3331)
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
-data = torch.linspace(-np.pi, np.pi, 100, device=device).reshape(-1, 1)
-labels = torch.sin(data) #.reshape(-1)
-data = torch.cat([data, torch.ones_like(data, device=device)], dim=1)
+# standard cifar10 download code
+from torchvision import datasets, transforms
+import torch.utils.data as data_utils
+total_samples = 10
+batch_size = 1
 
-d_in = 2
-d_out = 3
-r = 20
-L = 1
-bias_alpha = .5
-batch_size = 50
-net = InfMLP(d_in, d_out, r, L, device=device, bias_alpha=bias_alpha )
+transform_list = []
+transform_list.extend([transforms.ToTensor()])
 
-net.train()
-epoch = 20
-accum_steps = 1
-gclip = .1
-optimizer = PiSGD(net.parameters(), lr=.02)
-tic = time.time()
-for epoch in range(epoch):
-    if epoch % accum_steps == 0:
-        optimizer.zero_grad()
-        net.zero_grad()
+transform_list.extend([transforms.Normalize([0.49137255, 0.48235294, 0.44666667], [0.24705882, 0.24352941, 0.26156863])])
+transform = transforms.Compose(transform_list)
 
-    prediction = net(data)
+trainset = datasets.CIFAR10(root=".", train=True,
+                                        download=True, transform=transform)
 
-    loss = torch.sum((prediction - labels) ** 2) ** .5
+np.random.seed(0) # reproducability of subset
+indices = np.random.choice(range(50000), size=total_samples, replace=False).tolist()
+trainset = data_utils.Subset(trainset, indices)
+print("Using subset of", len(trainset), "training samples")
+train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
+                                          shuffle=False, num_workers=0)
 
-    print('Epoch {}: train loss: {}'.format(epoch, loss.item()))
-
-    loss.backward()
-    # stage_grad(net)
-
-    if epoch % accum_steps == 0:
-        # unstage_grad(net)
-
-        if gclip:
-            store_pi_grad_norm_(net.modules())
-            clip_grad_norm_(net.parameters(), gclip)
-
-        optimizer.step()
-
-    # print("Memory used", torch.cuda.memory_reserved() / 1e9, torch.cuda.max_memory_reserved()  / 1e9)
-    print("Network A size", net.layers[1].A.shape[0])
-print("time", time.time() - tic)
+testset = datasets.CIFAR10(root=".", train=False,
+                                      download=True, transform=transform)
+np.random.seed(0) # reproducability of subset
+indices = np.random.choice(range(50000), size=total_samples, replace=False).tolist()
+testset = data_utils.Subset(testset, indices)
+print("Using subset of", len(testset), "testing samples")
+test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+                                        shuffle=False, num_workers=0)
