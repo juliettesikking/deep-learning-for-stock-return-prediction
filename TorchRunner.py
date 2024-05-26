@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from RollingWindow import RollingWindow
 import numpy as np
 import logging
+from pilimit_lib.inf.optim import PiSGD, store_pi_grad_norm_, clip_grad_norm_
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,7 +26,6 @@ class TorchRunner:
 
     def __init__(
         self,
-        rolling_window: bool,
         window_size: int,
         end_year: int,
         output: str,
@@ -36,10 +36,10 @@ class TorchRunner:
         model_name: str,
         coordinate_check: bool = False,
     ):
-        self.rolling_window = rolling_window
+
         self.window_size = window_size
-        self.start_year = 1963 + window_size if rolling_window else 1963
-        self.month = 1 if rolling_window else 2
+        self.start_year = 1963 + window_size
+        self.month = 1
         self.end_year = end_year
         self.output = output
         self.data = data
@@ -82,7 +82,7 @@ class TorchRunner:
                     logging.info(
                         f"{'='*12}>[GPU{self.gpu}]\tEpoch\t{epoch}\tTest Month\t{current_month}===="
                     )
-                    TorchRunner.run_epoch(
+                    self.run_epoch(
                         dataloader,
                         model,
                         criterion,
@@ -100,8 +100,7 @@ class TorchRunner:
                 # Save and log results as needed
                 previous_month = current_month
                 self.month += 1
-                if self.rolling_window:
-                    window.update_window(month=current_month)
+                window.update_window(month=current_month)
             self.month = 1
             self.start_year += 1
 
@@ -116,17 +115,25 @@ class TorchRunner:
         )
         return returns
 
-    @staticmethod
-    def run_epoch(data_iter, model, loss_compute, optimizer):
+    def run_epoch(self, data_iter, model, loss_compute, optimizer):
         start = time.time()
         total_loss = 0
         n_accum = 0
         in_sample_results = []
         for i, (x_t, r_t_1) in enumerate(data_iter):
-            out = model(x_t)
+            out = (
+                model(x_t)
+                if self.model != "pilimit"
+                else model(x_t.view(x_t.size(1), x_t.size(2)))
+            )
             loss = loss_compute(out, r_t_1.view(-1, 1))
             loss.backward()
+
+            if self.model == "pilimit":
+                store_pi_grad_norm_(model.modules())
+                clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
+
             optimizer.zero_grad(set_to_none=True)
             n_accum += 1
             total_loss += float(loss)

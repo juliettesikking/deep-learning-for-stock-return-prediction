@@ -4,6 +4,9 @@ deep_finance.egg-info/PKG-INFO
 deep_finance.egg-info/SOURCES.txt
 deep_finance.egg-info/dependency_links.txt
 deep_finance.egg-info/top_level.txt
+experiments/DeepNeuralNetwork.py
+experiments/PiNetwork.py
+experiments/ShallowNetwork.py
 experiments/__init__.py
 experiments/shallow_mlp.py
 losses/MSRR.py
