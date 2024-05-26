@@ -14,8 +14,12 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 from torch import nn
-from pilimit_lib.inf.layers import InfPiInputLinearReLU, InfPiLinearReLU
-from experiments.networks.networks import PiNet
+from pilimit_lib.inf.layers import (
+    InfPiInputLinearReLU,
+    InfPiLinearReLU,
+    FinPiLinearReLU,
+)
+from experiments.networks import PiNet
 from pilimit_lib.inf.optim import PiSGD, store_pi_grad_norm_, clip_grad_norm_
 
 
@@ -65,17 +69,7 @@ class PiNetwork(PiNet):
                 )
             )
 
-        self.layers.append(
-            InfPiLinearReLU(
-                r,
-                r_out=d_out,
-                output_layer=True,
-                bias_alpha=0,
-                device=device,
-                layernorm=layernorm,
-                cuda_batch_size=cuda_batch_size,
-            )
-        )
+        self.layers.append(torch.nn.Linear(r, 1, bias=False))
 
     def register_param_buffer(self, param_name, value):
         # Register individual floats as buffers for later saving/loading
@@ -86,6 +80,7 @@ class PiNetwork(PiNet):
     def forward(self, x):
         for n in range(0, self.L + 2):
             x = self.layers[n](x)
+
             if n == 0:
                 x *= self.first_layer_alpha
             if n == self.L + 1:
@@ -108,6 +103,7 @@ class DeepNeuralNetwork(torch.nn.Module):
         x = self.non_linearity(self.input_layer(x))
         for hidden_layer in self.hidden_layers:
             x = self.non_linearity(hidden_layer(x))
+
         return self.output_layer(x)
 
     def initialize_weights(self):
@@ -202,7 +198,7 @@ def main(filepath: str, model: str, window_size: int):
         for col in data.columns
         if col not in ["id", "date", "size_grp", "r_1", "month"]
     ]
-    network_sizes = [32, 64, 128]
+    network_sizes = [16, 64, 128]
     plt.figure(figsize=(10, 5))
 
     for size in network_sizes:
@@ -213,7 +209,7 @@ def main(filepath: str, model: str, window_size: int):
         result_dir = f"results/{model}/{size}"
         os.makedirs(result_dir, exist_ok=True)
         df = pd.DataFrame({"lr": learning_rates, "sharpe": sharpe_ratios})
-        df.to_pickle(os.path.join(result_dir, "shareps.pickle"))
+        df.to_pickle(os.path.join(result_dir, "sharpes.pickle"))
 
         plt.plot(
             learning_rates, sharpe_ratios, marker="o", label=f"Hidden layers: {size}"

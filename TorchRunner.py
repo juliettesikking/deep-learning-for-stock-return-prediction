@@ -129,20 +129,18 @@ class TorchRunner:
             loss = loss_compute(out, r_t_1.view(-1, 1))
             loss.backward()
 
-            if self.model == "pilimit":
-                store_pi_grad_norm_(model.modules())
-                clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
 
             optimizer.zero_grad(set_to_none=True)
             n_accum += 1
             total_loss += float(loss)
+
             in_sample_results += [torch.sum(out * r_t_1.view(-1, 1))]
             if (len(data_iter) > 10 and i % 10 == 0) or (i == (len(data_iter) - 1)):
                 lr = optimizer.param_groups[0]["lr"]
                 elapsed = time.time() - start
                 logging.info(
-                    f"Epoch Step: {i} | num. month run with GD: {n_accum} | Loss for one month: {loss / x_t.shape[0]:.5f} | Learning Rate: {lr:.1e} | Time: {elapsed:.2f}s"
+                    f"Epoch Step: {i} | num. month run with GD: {n_accum} | Loss for one month: {loss.item() / x_t.shape[0]:.5f} | Learning Rate: {lr:.1e} | Time: {elapsed:.2f}s"
                 )
                 start = time.time()
 
