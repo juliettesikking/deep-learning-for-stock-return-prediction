@@ -8,16 +8,10 @@ class MSRR(nn.Module):
         self.months = months
 
     def forward(self, inputs, targets):
-        # Inputs is a vector
-        # targets is a vector
+        inputs = inputs.view(1, -1)  # Convert to (1, N) row vector
+        targets = targets.view(-1, 1)  # Convert to (N, 1) column vector
 
-        # Thus, 1 - (inputs'targets)**2 is a scalar
-        loss = (
-            1
-            - torch.matmul(
-                inputs.T,
-                targets,
-            )
-        ) ** 2
+        # Perform matrix multiplication
+        loss = (1 - torch.matmul(inputs, targets)) ** 2
 
         return loss
